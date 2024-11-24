@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Runner Game</title>
+    <style>
+        body {
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: #1a1a1a;
+            font-family: Arial, sans-serif;
+        }
+
+        #gameContainer {
+            position: relative;
+            width: 800px;
+            height: 400px;
+            overflow: hidden;
+            background: linear-gradient(to bottom, #1a2b3c 0%, #2c3e50 100%);
+        }
+
+        #menu {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+        }
+
+        .button {
+            margin: 10px;
+            padding: 15px 30px;
+            font-size: 18px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            background: #3498db;
+            color: white;
+            transition: background 0.3s;
+        }
+
+        .button:hover {
+            background: #2980b9;
+        }
+
+        #player {
+            position: absolute;
+            width: 80px;
+            height: 100px;
+            bottom: 90px;
+            left: 90px;
+            background: url('player.png') no-repeat center/contain;
+        }
+
+        .bullet {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            background: red;
+            border-radius: 50%;
+        }
+
+        .enemy { 
+            position: absolute;
+            width: 80px;
+            height: 80px;
+            background: url('enemy.png') no-repeat center/contain;
+        }
+
+        .obstacle {
+            position: absolute;
+            width: 50px;  /* Changed from 80px to 50px */
+            height: 50px; /* Changed from 80px to 50px */
+            background: url('obstacle.png') no-repeat center/contain;
+        }
+
+        #ground {
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            height: 50px;
+            background: #34495e;
+        }
+
+        #score {
+            position: absolute;
+            top: 40px;
+            right: 40px;
+            color: white;
+            font-size: 24px;
+        }
+
+        #gameOver {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 48px;
+            text-align: center;
+            z-index: 99;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 20px;
+            border-radius: 10px;
+        }
+
+        .explosion {
+            position: absolute;
+            width: 40px;
+            height: 40px;
+            background: #ff4d4d;
+            border-radius: 50%;
+            animation: explode 0.3s forwards;
+        }
+
+        @keyframes explode {
+            0% { transform: scale(1); opacity: 1; }
+            100% { transform: scale(2); opacity: 0; }
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <div id="menu">
+            <h1 style="color: white;">Runner Game</h1>
+            <button class="button" onclick="startGame('easy')">Easy</button>
+            <button class="button" onclick="startGame('medium')">Medium</button>
+            <button class="button" onclick="startGame('hard')">Hard</button>
+        </div>
+        <div id="player"></div>
+        <div id="ground"></div>
+        <div id="score">Score: 0</div>
+        <div id="gameOver">
+            Game Over!<br>
+            <button class="button" onclick="location.reload()">Restart</button>
+        </div>
+    </div>
+
+    <script>
+        const player = document.getElementById('player');
+        const gameContainer = document.getElementById('gameContainer');
+        const scoreElement = document.getElementById('score');
+        const gameOverElement = document.getElementById('gameOver');
+        const menu = document.getElementById('menu');
+
+        let isJumping = false;
+        let isSliding = false;
+        let gameRunning = false;
+        let score = 0;
+        let bullets = [];
+        let enemies = [];
+        let obstacles = [];
+        let difficulty = 'easy';
+        let backgroundPos = 0;
+        let jumpVelocity = 0;
+        let gravity = 0.6;  // Reduced from 0.8 to 0.6 for easier landing
+        let playerY = 50;
+
+        const difficulties = {
+            easy: { enemySpeed: 3, obstacleSpeed: 3, spawnRate: 2000 },
+            medium: { enemySpeed: 5, obstacleSpeed: 5, spawnRate: 1500 },
+            hard: { enemySpeed: 7, obstacleSpeed: 7, spawnRate: 1000 }
+        };
+
+        function createExplosion(x, y) {
+            const explosion = document.createElement('div');
+            explosion.className = 'explosion';
+            explosion.style.left = x + 'px';
+            explosion.style.bottom = y + 'px';
+            gameContainer.appendChild(explosion);
+            setTimeout(() => explosion.remove(), 300);
+        }
+
+        function startGame(selectedDifficulty) {
+            difficulty = selectedDifficulty;
+            menu.style.display = 'none';
+            gameRunning = true;
+            score = 0;
+            scoreElement.textContent = 'Score: 0';
+            gameOverElement.style.display = 'none';
+            enemies.forEach(enemy => enemy.element.remove());
+            obstacles.forEach(obstacle => obstacle.element.remove());
+            bullets.forEach(bullet => bullet.element.remove());
+            enemies = [];
+            obstacles = [];
+            bullets = [];
+            playerY = 50;
+            player.style.bottom = playerY + 'px';
+            gameLoop();
+            spawnElements();
+        }
+
+        function jump() {
+            if (!isJumping && !isSliding && gameRunning) {
+                isJumping = true;
+                jumpVelocity = 15;  // Maintained the same jump height
+            }
+        }
+
+        function updateJump() {
+            if (isJumping) {
+                playerY += jumpVelocity;
+                jumpVelocity -= gravity;
+
+                if (playerY <= 50) {
+                    playerY = 50;
+                    jumpVelocity = 0;
+                    isJumping = false;
+                }
+
+                player.style.bottom = playerY + 'px';
+            }
+        }
+
+        function shoot() {
+            if (gameRunning) {
+                const bullet = document.createElement('div');
+                bullet.className = 'bullet';
+                bullet.style.left = (parseInt(player.style.left || 90) + 80) + 'px';
+                bullet.style.bottom = (playerY + 50) + 'px';
+                gameContainer.appendChild(bullet);
+                bullets.push({
+                    element: bullet,
+                    x: parseInt(bullet.style.left),
+                    y: parseInt(bullet.style.bottom)
+                });
+            }
+        }
+
+        function spawnElements() {
+            const spawnInterval = setInterval(() => {
+                if (gameRunning) {
+                    if (Math.random() < 0.5) {
+                        spawnEnemy();
+                    } else {
+                        spawnObstacle();
+                    }
+                } else {
+                    clearInterval(spawnInterval);
+                }
+            }, difficulties[difficulty].spawnRate);
+        }
+
+        function spawnEnemy() {
+            const enemy = document.createElement('div');
+            enemy.className = 'enemy';
+            enemy.style.left = '800px';
+            const bottomPosition = Math.random() * 200 + 50;
+            enemy.style.bottom = bottomPosition + 'px';
+            gameContainer.appendChild(enemy);
+            enemies.push({
+                element: enemy,
+                x: 800,
+                y: bottomPosition
+            });
+        }
+
+        function spawnObstacle() {
+            const obstacle = document.createElement('div');
+            obstacle.className = 'obstacle';
+            obstacle.style.left = '800px';
+            obstacle.style.bottom = '50px';
+            gameContainer.appendChild(obstacle);
+            obstacles.push({
+                element: obstacle,
+                x: 800,
+                y: 50
+            });
+        }
+
+        function checkCollision(rect1, rect2, isObstacle = false) {
+            const playerWidth = 80;
+            const playerHeight = 100;
+            const objectWidth = isObstacle ? 50 : 80;  // Use 50px width for obstacles, 80px for enemies
+            const objectHeight = isObstacle ? 50 : 80; // Use 50px height for obstacles, 80px for enemies
+            
+            // Add some padding to make collision detection more forgiving
+            const padding = 10;
+            
+            return (
+                rect1.x < rect2.x + objectWidth - padding &&
+                rect1.x + playerWidth - padding > rect2.x &&
+                rect1.y < rect2.y + objectHeight - padding &&
+                rect1.y + playerHeight - padding > rect2.y
+            );
+        }
+
+        function gameLoop() {
+            if (!gameRunning) return;
+
+            updateJump();
+
+            backgroundPos -= 2;
+            gameContainer.style.backgroundPosition = `${backgroundPos}px 0`;
+
+            // Update bullets
+            for (let i = bullets.length - 1; i >= 0; i--) {
+                const bullet = bullets[i];
+                bullet.x += 10;
+                bullet.element.style.left = bullet.x + 'px';
+
+                if (bullet.x > 800) {
+                    bullet.element.remove();
+                    bullets.splice(i, 1);
+                    continue;
+                }
+
+                // Check collision with enemies
+                for (let j = enemies.length - 1; j >= 0; j--) {
+                    const enemy = enemies[j];
+                    
+                    const bulletRect = {
+                        x: bullet.x,
+                        y: bullet.y
+                    };
+
+                    const enemyRect = {
+                        x: enemy.x,
+                        y: enemy.y
+                    };
+
+                    if (checkCollision(bulletRect, enemyRect)) {
+                        createExplosion(enemy.x, enemy.y);
+                        score += 10;
+                        scoreElement.textContent = `Score: ${score}`;
+                        enemy.element.remove();
+                        enemies.splice(j, 1);
+                        bullet.element.remove();
+                        bullets.splice(i, 1);
+                        break;
+                    }
+                }
+            }
+
+            // Update enemies
+            for (let i = enemies.length - 1; i >= 0; i--) {
+                const enemy = enemies[i];
+                enemy.x -= difficulties[difficulty].enemySpeed;
+                enemy.element.style.left = enemy.x + 'px';
+
+                if (enemy.x < -40) {
+                    enemy.element.remove();
+                    enemies.splice(i, 1);
+                    continue;
+                }
+
+                const playerRect = {
+                    x: parseInt(player.style.left || 90),
+                    y: playerY
+                };
+
+                const enemyRect = {
+                    x: enemy.x,
+                    y: enemy.y
+                };
+
+                if (checkCollision(playerRect, enemyRect)) {
+                    gameOver();
+                    return;
+                }
+            }
+
+            // Update obstacles
+            for (let i = obstacles.length - 1; i >= 0; i--) {
+                const obstacle = obstacles[i];
+                obstacle.x -= difficulties[difficulty].obstacleSpeed;
+                obstacle.element.style.left = obstacle.x + 'px';
+
+                if (obstacle.x < -40) {
+                    obstacle.element.remove();
+                    obstacles.splice(i, 1);
+                    continue;
+                }
+
+                const playerRect = {
+                    x: parseInt(player.style.left || 90),
+                    y: playerY
+                };
+
+                const obstacleRect = {
+                    x: obstacle.x,
+                    y: obstacle.y
+                };
+
+                if (checkCollision(playerRect, obstacleRect, true)) {  // Pass true for obstacle collision
+                    gameOver();
+                    return;
+                }
+            }
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        function gameOver() {
+            gameRunning = false;
+            gameOverElement.style.display = 'block';
+        }
+
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') jump();
+            if (e.code === 'Enter') shoot();
+        });
+    </script>
+</body>
+</html>
