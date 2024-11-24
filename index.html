@@ -77,8 +77,8 @@
 
         .obstacle {
             position: absolute;
-            width: 50px;  /* Changed from 80px to 50px */
-            height: 50px; /* Changed from 80px to 50px */
+            width: 50px;  
+            height: 50px; 
             background: url('obstacle.png') no-repeat center/contain;
         }
 
@@ -162,7 +162,7 @@
         let difficulty = 'easy';
         let backgroundPos = 0;
         let jumpVelocity = 0;
-        let gravity = 0.6;  // Reduced from 0.8 to 0.6 for easier landing
+        let gravity = 0.6;  
         let playerY = 50;
 
         const difficulties = {
@@ -202,7 +202,7 @@
         function jump() {
             if (!isJumping && !isSliding && gameRunning) {
                 isJumping = true;
-                jumpVelocity = 15;  // Maintained the same jump height
+                jumpVelocity = 15;  
             }
         }
 
@@ -280,10 +280,9 @@
         function checkCollision(rect1, rect2, isObstacle = false) {
             const playerWidth = 80;
             const playerHeight = 100;
-            const objectWidth = isObstacle ? 50 : 80;  // Use 50px width for obstacles, 80px for enemies
-            const objectHeight = isObstacle ? 50 : 80; // Use 50px height for obstacles, 80px for enemies
+            const objectWidth = isObstacle ? 50 : 80;  
+            const objectHeight = isObstacle ? 50 : 80; 
             
-            // Add some padding to make collision detection more forgiving
             const padding = 10;
             
             return (
